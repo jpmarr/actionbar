@@ -12,10 +12,13 @@ struct RepositoryListView: View {
                     appState.selectedRepository = nil
                     appState.availableWorkflows = []
                 } label: {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
                 .font(.caption)
 
@@ -55,6 +58,15 @@ struct RepositoryListView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
+                                    if let count = appState.repoWorkflowCounts[repo.id] {
+                                        Text("\(count)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 1)
+                                            .background(.quaternary)
+                                            .clipShape(Capsule())
+                                    }
                                     Image(systemName: "chevron.right")
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
@@ -75,11 +87,14 @@ struct RepositoryListView: View {
     }
 
     private var filteredRepos: [Repository] {
+        let withWorkflows = appState.repositories.filter {
+            (appState.repoWorkflowCounts[$0.id] ?? 0) > 0
+        }
         if searchText.isEmpty {
-            return appState.repositories
+            return withWorkflows
         }
         let query = searchText.lowercased()
-        return appState.repositories.filter {
+        return withWorkflows.filter {
             $0.fullName.lowercased().contains(query)
         }
     }

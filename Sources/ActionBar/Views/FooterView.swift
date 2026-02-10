@@ -1,5 +1,46 @@
 import SwiftUI
 
+struct HoverButtonStyle: ButtonStyle {
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        HoverButtonLabel(configuration: configuration)
+    }
+}
+
+private struct HoverButtonLabel: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var isHovered = false
+
+    var body: some View {
+        configuration.label
+            .padding(4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(configuration.isPressed ? Color.primary.opacity(0.15) : isHovered ? Color.primary.opacity(0.08) : Color.clear)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .onHover { isHovered = $0 }
+    }
+}
+
+struct MenuWithHover<MenuContent: View, Label: View>: View {
+    @ViewBuilder let content: () -> MenuContent
+    @ViewBuilder let label: () -> Label
+    @State private var isHovered = false
+
+    var body: some View {
+        Menu(content: content, label: label)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .padding(4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+            )
+            .onHover { isHovered = $0 }
+    }
+}
+
 struct FooterView: View {
     @Environment(AppState.self) private var appState
 
@@ -19,29 +60,9 @@ struct FooterView: View {
             }
             .help("Refresh now")
 
-            Button {
-                appState.showingSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .help("Settings")
-
             Spacer()
-
-            Button {
-                Task { await appState.signOut() }
-            } label: {
-                Text("Sign Out")
-                    .font(.caption)
-            }
-            .foregroundStyle(.secondary)
-
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-            .keyboardShortcut("q")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoverButtonStyle())
         .padding(.horizontal)
         .padding(.vertical, 8)
     }

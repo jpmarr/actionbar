@@ -12,6 +12,7 @@ enum Configuration {
     static let verificationURL = URL(string: "https://github.com/login/device")!
 
     static let defaultPollInterval: TimeInterval = 30
+    static let defaultActivePollInterval: TimeInterval = 10
     static let keychainServiceName = "com.jpmarr.ActionBar"
     static let keychainAccountName = "github-token"
 }

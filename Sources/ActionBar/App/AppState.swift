@@ -24,6 +24,7 @@ final class AppState {
     var workflowRuns: [Int: [WorkflowRun]] = [:] // keyed by workflowId
 
     // MARK: - UI State
+    var repoWorkflowCounts: [Int: Int] = [:] // repo id -> active workflow count
     var isLoadingRepos = false
     var isLoadingWorkflows = false
     var errorMessage: String?
@@ -66,7 +67,12 @@ final class AppState {
         self.authService = authService
         self.keychainService = keychainService
         self.storageService = storageService
-        self.pollingService = PollingService(gitHubClient: gitHubClient)
+        let settings = SettingsStorage()
+        self.pollingService = PollingService(
+            gitHubClient: gitHubClient,
+            interval: settings.pollInterval,
+            activeInterval: settings.activePollInterval
+        )
         self.dispatchConfigStorage = dispatchConfigStorage
     }
 
@@ -132,8 +138,30 @@ final class AppState {
     func fetchRepositories() async {
         isLoadingRepos = true
         errorMessage = nil
+        repoWorkflowCounts = [:]
         do {
-            repositories = try await gitHubClient.fetchRepositories(perPage: 100)
+            let repos = try await gitHubClient.fetchRepositories(perPage: 100)
+            repositories = repos
+
+            // Fetch workflow counts concurrently
+            await withTaskGroup(of: (Int, Int).self) { group in
+                for repo in repos {
+                    group.addTask {
+                        do {
+                            let response = try await self.gitHubClient.fetchWorkflows(
+                                owner: repo.owner.login, repo: repo.name
+                            )
+                            let activeCount = response.workflows.filter { $0.state == .active }.count
+                            return (repo.id, activeCount)
+                        } catch {
+                            return (repo.id, 0)
+                        }
+                    }
+                }
+                for await (repoId, count) in group {
+                    repoWorkflowCounts[repoId] = count
+                }
+            }
         } catch {
             errorMessage = "Failed to load repos: \(error.localizedDescription)"
         }
@@ -294,16 +322,26 @@ final class AppState {
                     dispatchInputValues[input.name] = input.defaultValue
                 }
 
-                // Override with saved config defaults
+                // Override with saved config defaults, resolving placeholders
                 if let config {
-                    for (name, inputDefault) in config.inputDefaults {
-                        if inputDefault.useCurrentBranch, let path = config.localRepoPath {
-                            if let branch = try? await GitBranchService.currentBranch(at: path) {
-                                dispatchInputValues[name] = branch
-                            }
-                        } else if !inputDefault.value.isEmpty {
-                            dispatchInputValues[name] = inputDefault.value
+                    var context: [String: String] = [
+                        "default_ref": config.defaultRef,
+                        "repo_name": workflow.repositoryName,
+                    ]
+
+                    let needsBranch = config.inputDefaults.values.contains {
+                        PlaceholderResolver.containsPlaceholder("current_branch", in: $0.value)
+                    }
+                    if needsBranch, let path = config.localRepoPath {
+                        if let branch = try? await GitBranchService.currentBranch(at: path) {
+                            context["current_branch"] = branch
                         }
+                    }
+
+                    for (name, inputDefault) in config.inputDefaults where !inputDefault.value.isEmpty {
+                        dispatchInputValues[name] = PlaceholderResolver.resolve(
+                            inputDefault.value, context: context
+                        )
                     }
                 }
             }
@@ -361,7 +399,9 @@ final class AppState {
             guard let config = dispatchConfigStorage.loadConfig(for: workflow.id),
                   let repoPath = config.localRepoPath,
                   !repoPath.isEmpty,
-                  config.inputDefaults.values.contains(where: { $0.useCurrentBranch }) else {
+                  config.inputDefaults.values.contains(where: {
+                      PlaceholderResolver.containsPlaceholder("current_branch", in: $0.value)
+                  }) else {
                 continue
             }
             do {

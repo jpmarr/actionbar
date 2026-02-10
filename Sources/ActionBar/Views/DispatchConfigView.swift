@@ -14,11 +14,21 @@ struct DispatchConfigView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button(action: { appState.cancelDispatchConfig() }) {
-                    Image(systemName: "chevron.left")
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
+                .foregroundStyle(.secondary)
+                .font(.caption)
+
+                Spacer()
+
                 Text("Configure Dispatch")
                     .font(.headline)
+
                 Spacer()
             }
             .padding(.bottom, 4)
@@ -76,7 +86,6 @@ struct DispatchConfigView: View {
             }
         }
         .padding()
-        .frame(minWidth: 480, maxWidth: 480, minHeight: 250, maxHeight: 450)
         .task {
             loadExisting()
             await loadInputs()
@@ -110,15 +119,6 @@ struct DispatchConfigView: View {
                 }
             )
 
-            let useBranchBinding = Binding<Bool>(
-                get: { inputDefaults[input.name]?.useCurrentBranch ?? false },
-                set: { newValue in
-                    var d = inputDefaults[input.name] ?? InputDefault()
-                    d.useCurrentBranch = newValue
-                    inputDefaults[input.name] = d
-                }
-            )
-
             if input.type == .choice {
                 Picker("", selection: binding) {
                     ForEach(input.options, id: \.self) { option in
@@ -128,14 +128,8 @@ struct DispatchConfigView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             } else {
-                TextField("Default value", text: binding)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
+                PlaceholderTextField(text: binding)
             }
-
-            Toggle("Use current branch", isOn: useBranchBinding)
-                .font(.caption2)
-                .toggleStyle(.checkbox)
         }
     }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var pollInterval: Double
+    @State private var activePollInterval: Double
     @State private var notificationsEnabled: Bool
     @State private var notifyOnSuccess: Bool
     @State private var notifyOnFailure: Bool
@@ -10,6 +11,7 @@ struct SettingsView: View {
     init() {
         let settings = SettingsStorage()
         _pollInterval = State(initialValue: settings.pollInterval)
+        _activePollInterval = State(initialValue: settings.activePollInterval)
         _notificationsEnabled = State(initialValue: settings.notificationsEnabled)
         _notifyOnSuccess = State(initialValue: settings.notifyOnSuccess)
         _notifyOnFailure = State(initialValue: settings.notifyOnFailure)
@@ -21,10 +23,13 @@ struct SettingsView: View {
                 Button {
                     appState.showingSettings = false
                 } label: {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
                 .font(.caption)
 
@@ -41,13 +46,25 @@ struct SettingsView: View {
             Form {
                 Section("Polling") {
                     HStack {
-                        Text("Poll interval")
+                        Text("Idle interval")
                         Spacer()
                         Picker("", selection: $pollInterval) {
                             Text("10s").tag(10.0)
                             Text("30s").tag(30.0)
                             Text("60s").tag(60.0)
                             Text("120s").tag(120.0)
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 80)
+                    }
+                    HStack {
+                        Text("Active run interval")
+                        Spacer()
+                        Picker("", selection: $activePollInterval) {
+                            Text("5s").tag(5.0)
+                            Text("10s").tag(10.0)
+                            Text("15s").tag(15.0)
+                            Text("30s").tag(30.0)
                         }
                         .pickerStyle(.menu)
                         .frame(width: 80)
@@ -67,11 +84,13 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .frame(minWidth: 480, maxWidth: 480, minHeight: 300)
         .onChange(of: pollInterval) { _, newValue in
-            let settings = SettingsStorage()
-            settings.pollInterval = newValue
+            SettingsStorage().pollInterval = newValue
             Task { await appState.pollingService.setInterval(newValue) }
+        }
+        .onChange(of: activePollInterval) { _, newValue in
+            SettingsStorage().activePollInterval = newValue
+            Task { await appState.pollingService.setActiveInterval(newValue) }
         }
         .onChange(of: notificationsEnabled) { _, newValue in
             SettingsStorage().notificationsEnabled = newValue

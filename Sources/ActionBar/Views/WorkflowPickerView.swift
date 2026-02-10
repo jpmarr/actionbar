@@ -11,10 +11,13 @@ struct WorkflowPickerView: View {
                     appState.selectedRepository = nil
                     appState.availableWorkflows = []
                 } label: {
-                    Image(systemName: "chevron.left")
-                    Text("Repos")
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Repos")
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
                 .font(.caption)
 

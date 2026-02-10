@@ -16,11 +16,33 @@ struct DispatchConfig: Codable, Sendable {
 
 struct InputDefault: Codable, Sendable {
     var value: String
-    var useCurrentBranch: Bool
 
-    init(value: String = "", useCurrentBranch: Bool = false) {
+    init(value: String = "") {
         self.value = value
-        self.useCurrentBranch = useCurrentBranch
+    }
+
+    // MARK: - Backwards Compatibility
+
+    private enum CodingKeys: String, CodingKey {
+        case value
+        case useCurrentBranch // read-only for migration
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var rawValue = try container.decodeIfPresent(String.self, forKey: .value) ?? ""
+        let legacy = try container.decodeIfPresent(Bool.self, forKey: .useCurrentBranch) ?? false
+
+        if legacy && !rawValue.contains("${current_branch}") {
+            rawValue = "${current_branch}"
+        }
+
+        self.value = rawValue
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(value, forKey: .value)
     }
 }
 

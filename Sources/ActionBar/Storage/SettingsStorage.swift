@@ -3,6 +3,7 @@ import Foundation
 struct SettingsStorage {
     private enum Keys {
         static let pollInterval = "pollInterval"
+        static let activePollInterval = "activePollInterval"
         static let notificationsEnabled = "notificationsEnabled"
         static let notifyOnSuccess = "notifyOnSuccess"
         static let notifyOnFailure = "notifyOnFailure"
@@ -21,6 +22,16 @@ struct SettingsStorage {
         }
         nonmutating set {
             defaults.set(newValue, forKey: Keys.pollInterval)
+        }
+    }
+
+    var activePollInterval: TimeInterval {
+        get {
+            let value = defaults.double(forKey: Keys.activePollInterval)
+            return value > 0 ? value : Configuration.defaultActivePollInterval
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Keys.activePollInterval)
         }
     }
 

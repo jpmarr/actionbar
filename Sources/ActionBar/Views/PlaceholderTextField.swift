@@ -1,20 +1,19 @@
 import SwiftUI
 
-struct PathTextField: View {
-    @Binding var path: String
-    @State private var suggestions: [String] = []
+struct PlaceholderTextField: View {
+    @Binding var text: String
+    @State private var suggestions: [Placeholder] = []
     @State private var showSuggestions = false
     @State private var selectedIndex: Int = -1
     @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("/path/to/repo", text: $path)
+            TextField("Default value", text: $text)
                 .textFieldStyle(.roundedBorder)
-                .font(.body)
+                .font(.caption)
                 .focused($isFocused)
-                .onChange(of: path) { _, newValue in
-                    guard isFocused else { return }
+                .onChange(of: text) { _, newValue in
                     updateSuggestions(for: newValue)
                     selectedIndex = -1
                 }
@@ -68,22 +67,20 @@ struct PathTextField: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(suggestions.enumerated()), id: \.element) { index, suggestion in
-                                let name = (suggestion as NSString).lastPathComponent
+                            ForEach(Array(suggestions.enumerated()), id: \.offset) { index, placeholder in
                                 let isSelected = index == selectedIndex
                                 Button {
-                                    applySuggestion(suggestion)
+                                    applySuggestion(placeholder)
                                 } label: {
                                     HStack(spacing: 4) {
-                                        Image(systemName: "folder")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(isSelected ? .white : .secondary)
-                                        Text(name)
-                                            .font(.caption)
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
+                                        Text("${\(placeholder.name)}")
+                                            .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(isSelected ? .white : .primary)
                                         Spacer()
+                                        Text(placeholder.description)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                                            .lineLimit(1)
                                     }
                                     .contentShape(Rectangle())
                                     .padding(.horizontal, 8)
@@ -97,7 +94,7 @@ struct PathTextField: View {
                         }
                         .padding(.vertical, 2)
                     }
-                    .frame(maxHeight: 120)
+                    .frame(maxHeight: 100)
                     .background(.background)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(
@@ -115,60 +112,40 @@ struct PathTextField: View {
         }
     }
 
-    private func applySuggestion(_ suggestion: String) {
-        path = suggestion
-        updateSuggestions(for: suggestion)
+    private func applySuggestion(_ placeholder: Placeholder) {
+        // Find the unclosed ${ and replace from there
+        if let dollarRange = findUnclosedPlaceholder(in: text) {
+            text = String(text[text.startIndex..<dollarRange.lowerBound]) + "${\(placeholder.name)}" + String(text[dollarRange.upperBound...])
+        } else {
+            // No unclosed placeholder — just append
+            text += "${\(placeholder.name)}"
+        }
+        showSuggestions = false
         selectedIndex = -1
     }
 
-    private func updateSuggestions(for text: String) {
-        guard !text.isEmpty else {
+    private func updateSuggestions(for value: String) {
+        guard let range = findUnclosedPlaceholder(in: value) else {
             suggestions = []
             showSuggestions = false
             return
         }
 
-        let expanded = (text as NSString).expandingTildeInPath
-        let fm = FileManager.default
-        var isDir: ObjCBool = false
-
-        if text.hasSuffix("/") && fm.fileExists(atPath: expanded, isDirectory: &isDir) && isDir.boolValue {
-            suggestions = listDirectories(in: expanded)
-            showSuggestions = !suggestions.isEmpty
-            return
-        }
-
-        let parent = (expanded as NSString).deletingLastPathComponent
-        let partial = (expanded as NSString).lastPathComponent.lowercased()
-
-        guard fm.fileExists(atPath: parent, isDirectory: &isDir), isDir.boolValue else {
-            suggestions = []
-            showSuggestions = false
-            return
-        }
-
-        let matches = listDirectories(in: parent).filter {
-            ($0 as NSString).lastPathComponent.lowercased().hasPrefix(partial)
-        }
-
-        suggestions = matches
-        showSuggestions = !matches.isEmpty
+        let prefix = String(value[range]).dropFirst(2) // drop "${"
+        suggestions = PlaceholderResolver.completions(for: String(prefix))
+        showSuggestions = !suggestions.isEmpty
     }
 
-    private func listDirectories(in directory: String) -> [String] {
-        let fm = FileManager.default
-        guard let contents = try? fm.contentsOfDirectory(atPath: directory) else { return [] }
+    /// Finds the range of an unclosed `${...` at the end of the string (no closing `}`).
+    private func findUnclosedPlaceholder(in value: String) -> Range<String.Index>? {
+        guard let dollarIndex = value.lastIndex(of: "$") else { return nil }
+        let afterDollar = value.index(after: dollarIndex)
+        guard afterDollar < value.endIndex, value[afterDollar] == "{" else { return nil }
 
-        return contents
-            .filter { !$0.hasPrefix(".") }
-            .compactMap { name -> String? in
-                let full = (directory as NSString).appendingPathComponent(name)
-                var isDir: ObjCBool = false
-                guard fm.fileExists(atPath: full, isDirectory: &isDir), isDir.boolValue else {
-                    return nil
-                }
-                return full
-            }
-            .sorted()
+        let rest = value[value.index(after: afterDollar)...]
+        // If there's a closing brace, this placeholder is already complete
+        if rest.contains("}") { return nil }
+
+        return dollarIndex..<value.endIndex
     }
 }

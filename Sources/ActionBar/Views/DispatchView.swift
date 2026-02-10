@@ -10,11 +10,21 @@ struct DispatchView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button(action: { appState.cancelDispatch() }) {
-                    Image(systemName: "chevron.left")
+                    HStack(spacing: 2) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoverButtonStyle())
+                .foregroundStyle(.secondary)
+                .font(.caption)
+
+                Spacer()
+
                 Text("Trigger Run")
                     .font(.headline)
+
                 Spacer()
             }
             .padding(.bottom, 4)
@@ -97,7 +107,6 @@ struct DispatchView: View {
             }
         }
         .padding()
-        .frame(minWidth: 480, maxWidth: 480, minHeight: 250, maxHeight: 450)
     }
 
     private func inputRow(_ input: WorkflowDispatchInput) -> some View {

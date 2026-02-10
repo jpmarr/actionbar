@@ -18,19 +18,20 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var signedInContent: some View {
-        if let workflow = appState.showingDispatchConfig {
-            DispatchConfigView(workflow: workflow)
-        } else if let workflow = appState.showingDispatch {
-            DispatchView(workflow: workflow)
-        } else if appState.showingSettings {
-            SettingsView()
-        } else if appState.showingAddWorkflow {
-            addWorkflowFlow
-                .frame(minWidth: 480, maxWidth: 480, minHeight: 300, maxHeight: 400)
-        } else {
-            mainContent
-                .frame(minWidth: 480, maxWidth: 480, minHeight: 200)
+        Group {
+            if let workflow = appState.showingDispatchConfig {
+                DispatchConfigView(workflow: workflow)
+            } else if let workflow = appState.showingDispatch {
+                DispatchView(workflow: workflow)
+            } else if appState.showingSettings {
+                SettingsView()
+            } else if appState.showingAddWorkflow {
+                addWorkflowFlow
+            } else {
+                mainContent
+            }
         }
+        .frame(width: 560, height: 450)
     }
 
     @ViewBuilder
@@ -52,6 +53,22 @@ struct MenuContentView: View {
                     Text(user.login)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    MenuWithHover {
+                        Button("Settings...") {
+                            appState.showingSettings = true
+                        }
+                        Divider()
+                        Button("Sign Out") {
+                            Task { await appState.signOut() }
+                        }
+                        Button("Quit ActionBar") {
+                            NSApplication.shared.terminate(nil)
+                        }
+                    } label: {
+                        Text("⋮")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.top, 12)

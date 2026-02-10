@@ -4,9 +4,8 @@ actor PollingService {
     private let gitHubClient: GitHubClient
     private var pollTask: Task<Void, Never>?
     private var baseInterval: TimeInterval
+    private var activeInterval: TimeInterval
     private var hasActiveRuns = false
-
-    private static let activeRunInterval: TimeInterval = 10
 
     private var onRunsUpdated: (@Sendable (_ workflowId: Int, _ runs: [WorkflowRun]) -> Void)?
 
@@ -14,17 +13,22 @@ actor PollingService {
         self.onRunsUpdated = handler
     }
 
-    init(gitHubClient: GitHubClient, interval: TimeInterval = Configuration.defaultPollInterval) {
+    init(gitHubClient: GitHubClient, interval: TimeInterval = Configuration.defaultPollInterval, activeInterval: TimeInterval = Configuration.defaultActivePollInterval) {
         self.gitHubClient = gitHubClient
         self.baseInterval = interval
+        self.activeInterval = activeInterval
     }
 
     func setInterval(_ newInterval: TimeInterval) {
         self.baseInterval = max(newInterval, 10)
     }
 
+    func setActiveInterval(_ newInterval: TimeInterval) {
+        self.activeInterval = max(newInterval, 5)
+    }
+
     private var effectiveInterval: TimeInterval {
-        hasActiveRuns ? Self.activeRunInterval : baseInterval
+        hasActiveRuns ? activeInterval : baseInterval
     }
 
     func start(workflows: [WatchedWorkflow]) {
