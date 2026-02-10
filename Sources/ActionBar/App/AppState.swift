@@ -36,6 +36,12 @@ final class AppState {
     // MARK: - Branch Detection
     var detectedBranches: [String: String] = [:] // workflow id -> branch name
 
+    // MARK: - Webhook State
+    var smeeConnectionState: SmeeConnectionState = .disconnected
+    var webhookRepoCount: Int = 0
+    var webhookTotalRepos: Int = 0
+    var webhookError: String?
+
     // MARK: - Dispatch State
     var showingDispatchConfig: WatchedWorkflow?
     var showingDispatch: WatchedWorkflow?
@@ -52,6 +58,7 @@ final class AppState {
     private let keychainService: KeychainService
     private let storageService: StorageService
     let pollingService: PollingService
+    let smeeService: SmeeService
     let dispatchConfigStorage: DispatchConfigStorage
     let notificationService = NotificationService()
     private let notificationDelegate = NotificationDelegate()
@@ -73,12 +80,19 @@ final class AppState {
             interval: settings.pollInterval,
             activeInterval: settings.activePollInterval
         )
+        self.smeeService = SmeeService()
         self.dispatchConfigStorage = dispatchConfigStorage
     }
 
     // MARK: - Lifecycle
 
-    func onAppear() async {
+    private var hasLaunched = false
+
+    /// Called once at app launch (from ActionBarApp.init). Starts background services immediately.
+    func onLaunch() async {
+        guard !hasLaunched else { return }
+        hasLaunched = true
+
         UNUserNotificationCenter.current().delegate = notificationDelegate
         await notificationService.requestPermission()
         watchedWorkflows = storageService.load()
@@ -89,14 +103,21 @@ final class AppState {
                 let user = try await gitHubClient.fetchCurrentUser()
                 currentUser = user
                 isSignedIn = true
+                // Always fetch current runs once for baseline, even if polling is disabled
+                await fetchInitialRuns()
                 await restartPolling()
+                await startWebhooksIfEnabled()
                 await refreshDetectedBranches()
             } catch {
-                // Token is stale — clear it
                 keychainService.delete()
                 await gitHubClient.setToken(nil)
             }
         }
+    }
+
+    /// Called when the menu popover appears.
+    func onAppear() async {
+        await onLaunch()
     }
 
     // MARK: - Watched Workflows
@@ -105,18 +126,36 @@ final class AppState {
         guard !watchedWorkflows.contains(workflow) else { return }
         watchedWorkflows.append(workflow)
         try? storageService.save(watchedWorkflows)
-        Task { await restartPolling() }
+        Task {
+            await restartPolling()
+            await syncWebhooks()
+        }
     }
 
     func removeWatchedWorkflow(_ workflow: WatchedWorkflow) {
         watchedWorkflows.removeAll { $0 == workflow }
         workflowRuns.removeValue(forKey: workflow.workflowId)
         try? storageService.save(watchedWorkflows)
-        Task { await restartPolling() }
+        Task {
+            await restartPolling()
+            await syncWebhooks()
+        }
+    }
+
+    /// One-time fetch of current runs for all watched workflows (baseline data).
+    private func fetchInitialRuns() async {
+        guard !watchedWorkflows.isEmpty else { return }
+        await pollingService.setOnRunsUpdated { [weak self] workflowId, runs in
+            Task { @MainActor in
+                self?.handleRunsUpdate(workflowId: workflowId, runs: runs)
+            }
+        }
+        await pollingService.pollOnce(workflows: watchedWorkflows)
     }
 
     func restartPolling() async {
-        guard isSignedIn, !watchedWorkflows.isEmpty else {
+        let settings = SettingsStorage()
+        guard isSignedIn, !watchedWorkflows.isEmpty, settings.pollingEnabled else {
             await pollingService.stop()
             return
         }
@@ -264,6 +303,7 @@ final class AppState {
 
     func signOut() async {
         await pollingService.stop()
+        await disableWebhooks()
         keychainService.delete()
         await gitHubClient.setToken(nil)
         isSignedIn = false
@@ -410,6 +450,181 @@ final class AppState {
             } catch {
                 detectedBranches.removeValue(forKey: workflow.id)
             }
+        }
+    }
+
+    // MARK: - Webhooks
+
+    func enableWebhooks() async {
+        let settings = SettingsStorage()
+        webhookError = nil
+
+        do {
+            // Create Smee channel if we don't have one
+            var smeeURL = settings.smeeURL
+            if smeeURL == nil {
+                let channelURL = try await smeeService.createChannel()
+                smeeURL = channelURL
+                settings.smeeURL = channelURL
+            }
+            guard let smeeURL else { return }
+
+            settings.webhooksEnabled = true
+
+            // Create GitHub webhooks for all watched repos
+            await createWebhooksForWatchedRepos(smeeURL: smeeURL)
+
+            // Start SSE connection
+            await wireSmeeCallbacks()
+            await smeeService.start(url: smeeURL)
+        } catch {
+            webhookError = "Failed to enable webhooks: \(error.localizedDescription)"
+        }
+    }
+
+    func disableWebhooks() async {
+        let settings = SettingsStorage()
+        settings.webhooksEnabled = false
+
+        // Delete all stored GitHub webhooks (best-effort)
+        var hookIds = settings.webhookIds
+        for (repoFullName, hookId) in hookIds {
+            let parts = repoFullName.split(separator: "/")
+            guard parts.count == 2 else { continue }
+            do {
+                try await gitHubClient.deleteWebhook(
+                    owner: String(parts[0]),
+                    repo: String(parts[1]),
+                    hookId: hookId
+                )
+            } catch {
+                // Best-effort cleanup
+            }
+            hookIds.removeValue(forKey: repoFullName)
+        }
+        settings.webhookIds = [:]
+        settings.smeeURL = nil
+
+        await smeeService.stop()
+        smeeConnectionState = .disconnected
+        webhookRepoCount = 0
+        webhookTotalRepos = 0
+        webhookError = nil
+    }
+
+    /// Syncs webhooks when watched workflows change. Only runs if webhooks are enabled.
+    func syncWebhooks() async {
+        let settings = SettingsStorage()
+        guard settings.webhooksEnabled, let smeeURL = settings.smeeURL else { return }
+
+        let watchedRepoNames = Set(watchedWorkflows.map(\.repositoryFullName))
+        var hookIds = settings.webhookIds
+
+        // Remove webhooks for repos no longer watched
+        for (repoFullName, hookId) in hookIds where !watchedRepoNames.contains(repoFullName) {
+            let parts = repoFullName.split(separator: "/")
+            guard parts.count == 2 else { continue }
+            try? await gitHubClient.deleteWebhook(
+                owner: String(parts[0]),
+                repo: String(parts[1]),
+                hookId: hookId
+            )
+            hookIds.removeValue(forKey: repoFullName)
+        }
+        settings.webhookIds = hookIds
+
+        // Add webhooks for newly watched repos
+        await createWebhooksForWatchedRepos(smeeURL: smeeURL)
+    }
+
+    private func startWebhooksIfEnabled() async {
+        let settings = SettingsStorage()
+        smeeLog("[AppState] startWebhooksIfEnabled: enabled=\(settings.webhooksEnabled), url=\(settings.smeeURL ?? "nil")")
+        guard settings.webhooksEnabled, let smeeURL = settings.smeeURL else { return }
+
+        let hookIds = settings.webhookIds
+        webhookRepoCount = hookIds.count
+        webhookTotalRepos = Set(watchedWorkflows.map(\.repositoryFullName)).count
+
+        await wireSmeeCallbacks()
+        await smeeService.start(url: smeeURL)
+    }
+
+    private func wireSmeeCallbacks() async {
+        await smeeService.setOnConnectionStateChanged { [weak self] state in
+            Task { @MainActor in
+                self?.smeeConnectionState = state
+            }
+        }
+        await smeeService.setOnWebhookEvent { [weak self] event in
+            Task { @MainActor in
+                self?.handleWebhookEvent(event)
+            }
+        }
+    }
+
+    private func createWebhooksForWatchedRepos(smeeURL: String) async {
+        let settings = SettingsStorage()
+        let watchedRepoNames = Set(watchedWorkflows.map(\.repositoryFullName))
+        var hookIds = settings.webhookIds
+        var successCount = 0
+
+        await withTaskGroup(of: (String, Int?).self) { group in
+            for repoFullName in watchedRepoNames where hookIds[repoFullName] == nil {
+                let parts = repoFullName.split(separator: "/")
+                guard parts.count == 2 else { continue }
+                let owner = String(parts[0])
+                let repo = String(parts[1])
+
+                group.addTask {
+                    do {
+                        let hookId = try await self.gitHubClient.createWebhook(
+                            owner: owner, repo: repo, url: smeeURL
+                        )
+                        return (repoFullName, hookId)
+                    } catch {
+                        // User may not have admin on this repo — skip gracefully
+                        return (repoFullName, nil)
+                    }
+                }
+            }
+            for await (repoFullName, hookId) in group {
+                if let hookId {
+                    hookIds[repoFullName] = hookId
+                    successCount += 1
+                }
+            }
+        }
+
+        settings.webhookIds = hookIds
+        webhookRepoCount = hookIds.count
+        webhookTotalRepos = watchedRepoNames.count
+    }
+
+    private func handleWebhookEvent(_ event: WebhookEvent) {
+        // Only process for watched workflows
+        guard watchedWorkflows.contains(where: {
+            $0.workflowId == event.workflowRun.workflowId &&
+            $0.repositoryFullName == event.repositoryFullName
+        }) else { return }
+
+        let workflowId = event.workflowRun.workflowId
+
+        // Update the run in our local state
+        var runs = workflowRuns[workflowId] ?? []
+        if let index = runs.firstIndex(where: { $0.id == event.workflowRun.id }) {
+            runs[index] = event.workflowRun
+        } else {
+            runs.insert(event.workflowRun, at: 0)
+        }
+        handleRunsUpdate(workflowId: workflowId, runs: runs)
+
+        // Schedule a delayed poll for the complete run list
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            await pollingService.pollOnce(workflows: watchedWorkflows.filter {
+                $0.workflowId == workflowId
+            })
         }
     }
 

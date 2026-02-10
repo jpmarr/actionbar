@@ -7,6 +7,10 @@ struct SettingsStorage {
         static let notificationsEnabled = "notificationsEnabled"
         static let notifyOnSuccess = "notifyOnSuccess"
         static let notifyOnFailure = "notifyOnFailure"
+        static let pollingEnabled = "pollingEnabled"
+        static let webhooksEnabled = "webhooksEnabled"
+        static let smeeURL = "smeeURL"
+        static let webhookIds = "webhookIds"
     }
 
     private let defaults: UserDefaults
@@ -62,6 +66,42 @@ struct SettingsStorage {
         }
         nonmutating set {
             defaults.set(newValue, forKey: Keys.notifyOnFailure)
+        }
+    }
+
+    var pollingEnabled: Bool {
+        get {
+            if defaults.object(forKey: Keys.pollingEnabled) == nil { return true }
+            return defaults.bool(forKey: Keys.pollingEnabled)
+        }
+        nonmutating set {
+            defaults.set(newValue, forKey: Keys.pollingEnabled)
+        }
+    }
+
+    var webhooksEnabled: Bool {
+        get { defaults.bool(forKey: Keys.webhooksEnabled) }
+        nonmutating set { defaults.set(newValue, forKey: Keys.webhooksEnabled) }
+    }
+
+    var smeeURL: String? {
+        get { defaults.string(forKey: Keys.smeeURL) }
+        nonmutating set { defaults.set(newValue, forKey: Keys.smeeURL) }
+    }
+
+    /// Repo full name → GitHub webhook ID
+    var webhookIds: [String: Int] {
+        get {
+            guard let data = defaults.data(forKey: Keys.webhookIds),
+                  let dict = try? JSONDecoder().decode([String: Int].self, from: data) else {
+                return [:]
+            }
+            return dict
+        }
+        nonmutating set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Keys.webhookIds)
+            }
         }
     }
 }

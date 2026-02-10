@@ -121,6 +121,54 @@ actor GitHubClient {
         try await performPostRequest(url: url, body: body)
     }
 
+    // MARK: - Webhooks
+
+    struct WebhookInfo: Decodable, Sendable {
+        let id: Int
+        let config: Config
+
+        struct Config: Decodable, Sendable {
+            let url: String?
+        }
+    }
+
+    /// Creates a webhook on a repo. Returns the webhook ID.
+    func createWebhook(owner: String, repo: String, url: String, events: [String] = ["workflow_run"]) async throws -> Int {
+        let apiURL = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/hooks")
+
+        struct HookBody: Encodable {
+            let name = "web"
+            let active = true
+            let events: [String]
+            let config: Config
+
+            struct Config: Encodable {
+                let url: String
+                let contentType = "json"
+                enum CodingKeys: String, CodingKey {
+                    case url
+                    case contentType = "content_type"
+                }
+            }
+        }
+
+        let body = HookBody(events: events, config: .init(url: url))
+        let data = try await performPostRequestReturningData(url: apiURL, body: body)
+        let hook = try decode(WebhookInfo.self, from: data)
+        return hook.id
+    }
+
+    func deleteWebhook(owner: String, repo: String, hookId: Int) async throws {
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/hooks/\(hookId)")
+        try await performDeleteRequest(url: url)
+    }
+
+    func listWebhooks(owner: String, repo: String) async throws -> [WebhookInfo] {
+        let url = baseURL.appendingPathComponent("repos/\(owner)/\(repo)/hooks")
+        let data = try await performRequest(url: url)
+        return try decode([WebhookInfo].self, from: data)
+    }
+
     // MARK: - Private
 
     private func performRequest(url: URL, accept: String = "application/vnd.github+json") async throws -> Data {
@@ -157,6 +205,87 @@ actor GitHubClient {
                     .map { Date(timeIntervalSince1970: $0) }
                 throw GitHubAPIError.rateLimited(resetDate: resetTimestamp)
             }
+            throw GitHubAPIError.forbidden
+        case 404:
+            throw GitHubAPIError.notFound
+        default:
+            let body = String(data: data, encoding: .utf8)
+            throw GitHubAPIError.serverError(statusCode: httpResponse.statusCode, body: body)
+        }
+    }
+
+    private func performPostRequestReturningData<T: Encodable>(url: URL, body: T) async throws -> Data {
+        guard let token else {
+            throw GitHubAPIError.noToken
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw GitHubAPIError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200..<300:
+            return data
+        case 401:
+            throw GitHubAPIError.unauthorized
+        case 403:
+            throw GitHubAPIError.forbidden
+        case 404:
+            throw GitHubAPIError.notFound
+        case 422:
+            let message = String(data: data, encoding: .utf8) ?? "Unknown validation error"
+            throw GitHubAPIError.validationFailed(message)
+        default:
+            let body = String(data: data, encoding: .utf8)
+            throw GitHubAPIError.serverError(statusCode: httpResponse.statusCode, body: body)
+        }
+    }
+
+    private func performDeleteRequest(url: URL) async throws {
+        guard let token else {
+            throw GitHubAPIError.noToken
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw GitHubAPIError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GitHubAPIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200..<300:
+            return
+        case 401:
+            throw GitHubAPIError.unauthorized
+        case 403:
             throw GitHubAPIError.forbidden
         case 404:
             throw GitHubAPIError.notFound
