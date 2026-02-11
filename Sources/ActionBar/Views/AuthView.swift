@@ -32,7 +32,7 @@ struct AuthView: View {
             case .error(let message):
                 Label(message, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
-                    .font(.caption)
+                    .font(.body)
 
                 signInButtons
             }
@@ -44,11 +44,11 @@ struct AuthView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .font(.caption)
+            .font(.body)
             .keyboardShortcut("q")
         }
         .padding()
-        .frame(width: 300)
+        .frame(width: 360)
     }
 
     private var signInButtons: some View {
@@ -65,7 +65,7 @@ struct AuthView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .font(.caption)
+            .font(.body)
 
             if appState.showPATEntry {
                 patEntryView
@@ -77,7 +77,7 @@ struct AuthView: View {
         VStack(spacing: 8) {
             SecureField("ghp_...", text: Bindable(appState).patInput)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 220)
+                .frame(width: 260)
 
             Button("Save Token") {
                 Task { await appState.signInWithPAT() }
@@ -89,7 +89,7 @@ struct AuthView: View {
     private func deviceCodeView(userCode: String, verificationURL: String) -> some View {
         VStack(spacing: 12) {
             Text("Enter this code on GitHub:")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.secondary)
 
             Text(userCode)

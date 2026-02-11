@@ -19,38 +19,29 @@ struct WorkflowRunsListView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(workflow.repositoryName)
-                    .font(.system(.caption, weight: .semibold))
+                    .font(.system(.body, weight: .semibold))
                 Text(workflow.workflowName)
-                    .font(.caption2)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                 if let branch = appState.detectedBranches[workflow.id] {
                     Text("\u{00B7}")
-                        .font(.caption2)
+                        .font(.body)
                         .foregroundStyle(.tertiary)
                     HStack(spacing: 2) {
                         Image(systemName: "arrow.triangle.branch")
                         Text(branch)
                     }
-                    .font(.caption2)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                 }
                 Spacer()
 
                 HStack(spacing: 0) {
                     Button {
-                        Task { await appState.prepareDispatch(for: workflow) }
-                    } label: {
-                        Image(systemName: "play.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .help("Trigger run")
-
-                    Button {
                         appState.showDispatchConfig(for: workflow)
                     } label: {
                         Image(systemName: "gearshape")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
                     }
                     .help("Configure dispatch")
@@ -61,7 +52,7 @@ struct WorkflowRunsListView: View {
                         }
                     } label: {
                         Image(systemName: "xmark.circle")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
                     }
                     .help("Stop watching")
@@ -72,7 +63,7 @@ struct WorkflowRunsListView: View {
             if workflowToRemove == workflow {
                 HStack(spacing: 8) {
                     Text("Remove this workflow?")
-                        .font(.caption2)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Cancel") {
@@ -81,14 +72,14 @@ struct WorkflowRunsListView: View {
                         }
                     }
                     .buttonStyle(HoverButtonStyle())
-                    .font(.caption2)
+                    .font(.body)
 
                     Button("Remove") {
                         appState.removeWatchedWorkflow(workflow)
                         workflowToRemove = nil
                     }
                     .buttonStyle(HoverButtonStyle())
-                    .font(.caption2)
+                    .font(.body)
                     .foregroundStyle(.red)
                 }
                 .padding(.vertical, 4)
@@ -96,10 +87,12 @@ struct WorkflowRunsListView: View {
             } else {
                 let runs = appState.workflowRuns[workflow.workflowId] ?? []
                 if let run = latestRun(from: runs) {
-                    WorkflowRunRow(run: run)
+                    WorkflowRunRow(run: run) {
+                        Task { await appState.prepareDispatch(for: workflow) }
+                    }
                 } else {
                     Text("No recent runs")
-                        .font(.caption2)
+                        .font(.body)
                         .foregroundStyle(.tertiary)
                         .padding(.vertical, 2)
                 }

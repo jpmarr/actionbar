@@ -54,15 +54,20 @@ struct StatusIcon: View {
                 return .secondary
             }
         case .inProgress:
-            return .orange
-        case .queued, .waiting, .pending, .requested:
             return .yellow
+        case .queued, .waiting, .pending, .requested:
+            return .orange
         case .unknown:
             return .secondary
         }
     }
 
     private var isAnimating: Bool {
-        status == .inProgress
+        switch status {
+        case .inProgress, .queued, .waiting, .pending, .requested:
+            return true
+        default:
+            return false
+        }
     }
 }

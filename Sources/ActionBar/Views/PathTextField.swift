@@ -76,10 +76,10 @@ struct PathTextField: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "folder")
-                                            .font(.system(size: 10))
+                                            .font(.subheadline)
                                             .foregroundStyle(isSelected ? .white : .secondary)
                                         Text(name)
-                                            .font(.caption)
+                                            .font(.body)
                                             .lineLimit(1)
                                             .truncationMode(.middle)
                                             .foregroundStyle(isSelected ? .white : .primary)

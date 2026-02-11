@@ -11,27 +11,58 @@ struct MenuContentView: View {
                 AuthView()
             }
         }
+        .clipped()
+        .animation(.easeInOut(duration: 0.25), value: activeScreen)
         .task {
             await appState.onAppear()
         }
     }
 
+    /// Identifies which screen is currently showing, for driving transitions.
+    private var activeScreen: String {
+        if !appState.isSignedIn { return "auth" }
+        if appState.showingDispatchConfig != nil { return "dispatchConfig" }
+        if appState.showingDispatch != nil { return "dispatch" }
+        if appState.showingSettings { return "settings" }
+        if appState.showingAddWorkflow {
+            return appState.selectedRepository != nil ? "workflowPicker" : "repoList"
+        }
+        return "main"
+    }
+
+    /// Sub-views slide in from the trailing edge; main list slides in from the leading edge.
+    private static let pushIn: AnyTransition = .asymmetric(
+        insertion: .move(edge: .trailing),
+        removal: .move(edge: .trailing)
+    )
+    private static let popIn: AnyTransition = .asymmetric(
+        insertion: .move(edge: .leading),
+        removal: .move(edge: .leading)
+    )
+
     @ViewBuilder
     private var signedInContent: some View {
-        Group {
-            if let workflow = appState.showingDispatchConfig {
-                DispatchConfigView(workflow: workflow)
-            } else if let workflow = appState.showingDispatch {
-                DispatchView(workflow: workflow)
-            } else if appState.showingSettings {
-                SettingsView()
-            } else if appState.showingAddWorkflow {
-                addWorkflowFlow
-            } else {
-                mainContent
-            }
+        if let workflow = appState.showingDispatchConfig {
+            DispatchConfigView(workflow: workflow)
+                .frame(width: 640, height: 520)
+                .transition(Self.pushIn)
+        } else if let workflow = appState.showingDispatch {
+            DispatchView(workflow: workflow)
+                .frame(width: 640, height: 520)
+                .transition(Self.pushIn)
+        } else if appState.showingSettings {
+            SettingsView()
+                .frame(width: 640, height: 520)
+                .transition(Self.pushIn)
+        } else if appState.showingAddWorkflow {
+            addWorkflowFlow
+                .frame(width: 640, height: 520)
+                .transition(Self.pushIn)
+        } else {
+            mainContent
+                .frame(width: 640, height: 520)
+                .transition(Self.popIn)
         }
-        .frame(width: 560, height: 450)
     }
 
     @ViewBuilder
@@ -51,7 +82,7 @@ struct MenuContentView: View {
                         .font(.headline)
                     Spacer()
                     Text(user.login)
-                        .font(.caption)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                     MenuWithHover {
                         Button("Settings...") {
@@ -61,7 +92,7 @@ struct MenuContentView: View {
                         Button("Sign Out") {
                             Task { await appState.signOut() }
                         }
-                        Button("Quit ActionBar") {
+                        Button("Quit") {
                             NSApplication.shared.terminate(nil)
                         }
                     } label: {
@@ -77,7 +108,7 @@ struct MenuContentView: View {
 
             if let error = appState.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
+                    .font(.body)
                     .foregroundStyle(.red)
                     .padding(.horizontal)
                     .padding(.bottom, 4)
@@ -93,14 +124,15 @@ struct MenuContentView: View {
                         .foregroundStyle(.secondary)
                     Text("No workflows watched")
                         .foregroundStyle(.secondary)
-                        .font(.subheadline)
+                        .font(.body)
                     Text("Click + to add workflows")
                         .foregroundStyle(.tertiary)
-                        .font(.caption)
+                        .font(.body)
                 }
                 Spacer()
             } else {
                 WorkflowRunsListView()
+                Spacer(minLength: 0)
             }
 
             Divider()

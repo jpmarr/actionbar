@@ -36,7 +36,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
-                .font(.caption)
+                .font(.subheadline)
 
                 Spacer()
 
@@ -90,7 +90,7 @@ struct SettingsView: View {
                                 .fill(webhookStatusColor)
                                 .frame(width: 8, height: 8)
                             Text(webhookStatusText)
-                                .font(.caption)
+                                .font(.body)
                                 .foregroundStyle(.secondary)
                         }
 
@@ -100,7 +100,7 @@ struct SettingsView: View {
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text(smeeURL.replacingOccurrences(of: "https://smee.io/", with: ""))
-                                    .font(.caption)
+                                    .font(.body)
                                     .foregroundStyle(.tertiary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
@@ -113,14 +113,14 @@ struct SettingsView: View {
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Text("\(appState.webhookRepoCount)/\(appState.webhookTotalRepos)")
-                                    .font(.caption)
+                                    .font(.body)
                                     .foregroundStyle(.secondary)
                             }
                         }
 
                         if let error = appState.webhookError {
                             Text(error)
-                                .font(.caption)
+                                .font(.body)
                                 .foregroundStyle(.red)
                         }
                     }

@@ -19,7 +19,7 @@ struct WorkflowPickerView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
-                .font(.caption)
+                .font(.subheadline)
 
                 Spacer()
 
@@ -44,7 +44,7 @@ struct WorkflowPickerView: View {
                 Spacer()
                 Text("No active workflows found")
                     .foregroundStyle(.secondary)
-                    .font(.caption)
+                    .font(.body)
                 Spacer()
             } else {
                 ScrollView {
@@ -70,9 +70,9 @@ struct WorkflowPickerView: View {
 
                 VStack(alignment: .leading) {
                     Text(workflow.name)
-                        .font(.system(.caption, weight: .medium))
+                        .font(.system(.body, weight: .medium))
                     Text(workflow.path)
-                        .font(.caption2)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                 }
 
@@ -81,7 +81,7 @@ struct WorkflowPickerView: View {
                 if appState.isWatching(workflowId: workflow.id) {
                     Image(systemName: "checkmark")
                         .foregroundStyle(.blue)
-                        .font(.caption)
+                        .font(.body)
                 }
             }
             .padding(.vertical, 4)

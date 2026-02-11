@@ -632,7 +632,32 @@ final class AppState {
 
     private func handleRunsUpdate(workflowId: Int, runs: [WorkflowRun]) {
         let oldRuns = workflowRuns[workflowId] ?? []
-        workflowRuns[workflowId] = runs
+
+        // Merge poll results with existing state to prevent stale API data
+        // from overwriting fresher webhook data.
+        let oldRunsById = Dictionary(oldRuns.map { ($0.id, $0) }, uniquingKeysWith: { _, b in b })
+        let newRunIds = Set(runs.map(\.id))
+
+        // For runs present in both, keep the one with the newer updatedAt
+        var mergedRuns = runs.map { run -> WorkflowRun in
+            if let existing = oldRunsById[run.id],
+               existing.updatedAt > run.updatedAt {
+                return existing
+            }
+            return run
+        }
+
+        // Preserve active runs from webhook that the API cache hasn't caught up to yet
+        for oldRun in oldRuns where !newRunIds.contains(oldRun.id) {
+            switch oldRun.status {
+            case .inProgress, .queued, .waiting, .pending, .requested:
+                mergedRuns.insert(oldRun, at: 0)
+            default:
+                break
+            }
+        }
+
+        workflowRuns[workflowId] = mergedRuns
 
         // Only notify after we have a baseline (not on first load)
         guard !oldRuns.isEmpty else {
@@ -649,7 +674,6 @@ final class AppState {
 
         for run in runs {
             let previousStatus = previousRunStatuses[run.id]
-
             if settings.notificationsEnabled {
                 // Notify on workflow start
                 let isActive = run.status == .inProgress || run.status == .queued

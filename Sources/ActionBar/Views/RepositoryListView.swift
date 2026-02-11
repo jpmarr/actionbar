@@ -20,7 +20,7 @@ struct RepositoryListView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
-                .font(.caption)
+                .font(.subheadline)
 
                 Spacer()
 
@@ -52,15 +52,15 @@ struct RepositoryListView: View {
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text(repo.name)
-                                            .font(.system(.caption, weight: .medium))
+                                            .font(.system(.body, weight: .medium))
                                         Text(repo.owner.login)
-                                            .font(.caption2)
+                                            .font(.body)
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
                                     if let count = appState.repoWorkflowCounts[repo.id] {
                                         Text("\(count)")
-                                            .font(.caption2)
+                                            .font(.body)
                                             .foregroundStyle(.secondary)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 1)
@@ -68,7 +68,7 @@ struct RepositoryListView: View {
                                             .clipShape(Capsule())
                                     }
                                     Image(systemName: "chevron.right")
-                                        .font(.caption2)
+                                        .font(.body)
                                         .foregroundStyle(.tertiary)
                                 }
                                 .padding(.horizontal)

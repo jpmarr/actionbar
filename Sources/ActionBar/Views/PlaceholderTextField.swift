@@ -11,7 +11,7 @@ struct PlaceholderTextField: View {
         VStack(alignment: .leading, spacing: 0) {
             TextField("Default value", text: $text)
                 .textFieldStyle(.roundedBorder)
-                .font(.caption)
+                .font(.body)
                 .focused($isFocused)
                 .onChange(of: text) { _, newValue in
                     updateSuggestions(for: newValue)
@@ -74,11 +74,11 @@ struct PlaceholderTextField: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Text("${\(placeholder.name)}")
-                                            .font(.system(.caption, design: .monospaced))
+                                            .font(.system(.body, design: .monospaced))
                                             .foregroundStyle(isSelected ? .white : .primary)
                                         Spacer()
                                         Text(placeholder.description)
-                                            .font(.system(size: 10))
+                                            .font(.subheadline)
                                             .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
                                             .lineLimit(1)
                                     }
