@@ -22,7 +22,7 @@ struct DispatchConfigView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
-                .font(.caption)
+                .font(.subheadline)
 
                 Spacer()
 
@@ -34,7 +34,7 @@ struct DispatchConfigView: View {
             .padding(.bottom, 4)
 
             Text("\(workflow.repositoryName) / \(workflow.workflowName)")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.secondary)
 
             Divider()
@@ -43,7 +43,7 @@ struct DispatchConfigView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Default Branch/Ref")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
                         TextField("main", text: $defaultRef)
                             .textFieldStyle(.roundedBorder)
@@ -52,7 +52,7 @@ struct DispatchConfigView: View {
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Local Repo Path")
-                            .font(.caption)
+                            .font(.body)
                             .foregroundStyle(.secondary)
                         PathTextField(path: $localRepoPath)
                     }
@@ -63,7 +63,7 @@ struct DispatchConfigView: View {
                     } else if !inputs.isEmpty {
                         Divider()
                         Text("Input Defaults")
-                            .font(.subheadline)
+                            .font(.body)
                             .fontWeight(.medium)
 
                         ForEach(inputs) { input in
@@ -96,17 +96,17 @@ struct DispatchConfigView: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(input.name)
-                    .font(.caption)
+                    .font(.body)
                     .fontWeight(.medium)
                 if input.required {
                     Text("required")
-                        .font(.system(size: 9))
+                        .font(.caption)
                         .foregroundStyle(.red)
                 }
             }
             if !input.description.isEmpty {
                 Text(input.description)
-                    .font(.system(size: 10))
+                    .font(.body)
                     .foregroundStyle(.tertiary)
             }
 

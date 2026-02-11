@@ -18,7 +18,7 @@ struct DispatchView: View {
                 }
                 .buttonStyle(HoverButtonStyle())
                 .foregroundStyle(.secondary)
-                .font(.caption)
+                .font(.subheadline)
 
                 Spacer()
 
@@ -30,7 +30,7 @@ struct DispatchView: View {
             .padding(.bottom, 4)
 
             Text("\(workflow.repositoryName) / \(workflow.workflowName)")
-                .font(.subheadline)
+                .font(.body)
                 .foregroundStyle(.secondary)
 
             Divider()
@@ -49,7 +49,7 @@ struct DispatchView: View {
                     Text("Workflow dispatch triggered!")
                         .font(.subheadline)
                     Text("The run should appear shortly.")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -66,7 +66,7 @@ struct DispatchView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Branch/Ref")
-                                .font(.caption)
+                                .font(.body)
                                 .foregroundStyle(.secondary)
                             TextField("main", text: $state.dispatchRef)
                                 .textFieldStyle(.roundedBorder)
@@ -76,7 +76,7 @@ struct DispatchView: View {
                         if !appState.dispatchInputs.isEmpty {
                             Divider()
                             Text("Inputs")
-                                .font(.subheadline)
+                                .font(.body)
                                 .fontWeight(.medium)
 
                             ForEach(appState.dispatchInputs) { input in
@@ -89,7 +89,7 @@ struct DispatchView: View {
 
                 if let error = appState.dispatchError {
                     Label(error, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
+                        .font(.body)
                         .foregroundStyle(.red)
                 }
 
@@ -113,17 +113,17 @@ struct DispatchView: View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(input.name)
-                    .font(.caption)
+                    .font(.body)
                     .fontWeight(.medium)
                 if input.required {
                     Text("required")
-                        .font(.system(size: 9))
+                        .font(.caption)
                         .foregroundStyle(.red)
                 }
             }
             if !input.description.isEmpty {
                 Text(input.description)
-                    .font(.system(size: 10))
+                    .font(.body)
                     .foregroundStyle(.tertiary)
             }
 
@@ -154,7 +154,7 @@ struct DispatchView: View {
             case .string, .number, .environment:
                 TextField(input.defaultValue.isEmpty ? input.name : input.defaultValue, text: binding)
                     .textFieldStyle(.roundedBorder)
-                    .font(.caption)
+                    .font(.body)
             }
         }
     }
