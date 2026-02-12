@@ -4,41 +4,57 @@ struct StatusMenuBarLabel: View {
     let workflowRuns: [Int: [WorkflowRun]]
 
     var body: some View {
-        Label("ActionBar", systemImage: iconName)
+        let info = menuBarInfo
+        if info.activeCount > 1 {
+            Label("ActionBar — \(info.activeCount) running", systemImage: info.iconName)
+        } else {
+            Label("ActionBar", systemImage: info.iconName)
+        }
     }
 
-    private var iconName: String {
+    private struct MenuBarInfo {
+        let iconName: String
+        let activeCount: Int
+    }
+
+    private var menuBarInfo: MenuBarInfo {
         let allRuns = workflowRuns.values.flatMap { $0 }
         guard !allRuns.isEmpty else {
-            return "gearshape.arrow.triangle.2.circlepath"
+            return MenuBarInfo(iconName: "gearshape.arrow.triangle.2.circlepath", activeCount: 0)
         }
 
-        let hasFailure = allRuns.contains { run in
-            run.status == .completed && (run.conclusion == .failure || run.conclusion == .startupFailure || run.conclusion == .timedOut)
-        }
-        if hasFailure {
-            return "exclamationmark.circle.fill"
+        let inProgressCount = allRuns.filter { $0.status == .inProgress }.count
+        if inProgressCount > 0 {
+            return MenuBarInfo(iconName: "circle.dotted.circle", activeCount: inProgressCount)
         }
 
-        let hasInProgress = allRuns.contains { $0.status == .inProgress }
-        if hasInProgress {
-            return "circle.dotted.circle"
+        let queuedCount = allRuns.filter {
+            $0.status == .queued || $0.status == .waiting || $0.status == .pending || $0.status == .requested
+        }.count
+        if queuedCount > 0 {
+            return MenuBarInfo(iconName: "clock.circle", activeCount: queuedCount)
         }
 
-        let hasQueued = allRuns.contains {
-            $0.status == .queued || $0.status == .waiting || $0.status == .pending
-        }
-        if hasQueued {
-            return "clock.circle"
+        // Resting state: base icon on the single most recent run
+        guard let latestRun = allRuns.max(by: { $0.updatedAt < $1.updatedAt }) else {
+            return MenuBarInfo(iconName: "gearshape.arrow.triangle.2.circlepath", activeCount: 0)
         }
 
-        let allSuccess = allRuns.allSatisfy { run in
-            run.status == .completed && run.conclusion == .success
-        }
-        if allSuccess {
-            return "checkmark.circle.fill"
+        if latestRun.status == .completed {
+            switch latestRun.conclusion {
+            case .success:
+                return MenuBarInfo(iconName: "checkmark.circle.fill", activeCount: 0)
+            case .failure, .startupFailure, .timedOut:
+                return MenuBarInfo(iconName: "exclamationmark.circle.fill", activeCount: 0)
+            case .cancelled:
+                return MenuBarInfo(iconName: "stop.circle.fill", activeCount: 0)
+            case .actionRequired:
+                return MenuBarInfo(iconName: "exclamationmark.circle.fill", activeCount: 0)
+            default:
+                return MenuBarInfo(iconName: "checkmark.circle.fill", activeCount: 0)
+            }
         }
 
-        return "gearshape.arrow.triangle.2.circlepath"
+        return MenuBarInfo(iconName: "gearshape.arrow.triangle.2.circlepath", activeCount: 0)
     }
 }
